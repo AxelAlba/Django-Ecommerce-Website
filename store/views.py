@@ -1,5 +1,8 @@
 from django.shortcuts import render
+from django.http import JsonResponse
+import json
 from .models import * 
+
 
 def store(request):
 	products = Product.objects.all()
@@ -32,3 +35,34 @@ def checkout(request): #same with cart
 
 	context = {'items':items, 'order':order}
 	return render(request, 'store/checkout.html', context)
+
+def updateItem(request):
+    data = json.loads(request.body) # we objectify the json string sent by cart.js
+    productId = data['productId'] #dictonaries
+    action = data['action']
+
+    print('Action: ', action)
+    print('productId: ', productId)
+
+    customer = request.user.customer
+    product = Product.objects.get(id=productId)
+    order, created = Order.objects.get_or_create(
+        customer = customer, 
+        complete = False)
+    orderItem, created = OrderItem.objects.get_or_create(
+        order = order, 
+        product = product
+    )
+    # to not create a new item for the same order
+    if action == 'add':
+        orderItem.quantity = (orderItem.quantity + 1)
+    elif action == 'remove':
+        orderItem.quantity = (orderItem.quantity - 1)
+    
+    orderItem.save()
+
+    # if the quantity is 0, delete it
+    if orderItem.quantity <= 0:
+        orderItem.delete()
+
+    return JsonResponse('Item was added', safe = False)
